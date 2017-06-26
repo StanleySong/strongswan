@@ -21,10 +21,10 @@ AM_CPPFLAGS = \
 	-I$(top_srcdir)/src/libtncif \
 	-I$(top_srcdir)/src/libimcv \
 	-DSWID_DIRECTORY=\"${prefix}/share\" \
-	-DPLUGINS=\""random sqlite"\"
+	-DPLUGINS=\""random openssl sqlite curl"\"
 
 AM_CFLAGS = \
-	$(PLUGIN_CFLAGS)
+	$(PLUGIN_CFLAGS) $(json_CFLAGS)
 
 imcv_LTLIBRARIES = imc-swima.la
 
@@ -38,11 +38,14 @@ ipsec_PROGRAMS = sw-collector
 sw_collector_SOURCES = \
 	sw_collector/sw-collector.c \
 	sw_collector/sw_collector_db.h sw_collector/sw_collector_db.c \
-	sw_collector/sw_collector_history.h sw_collector/sw_collector_history.c
+	sw_collector/sw_collector_history.h sw_collector/sw_collector_history.c \
+	sw_collector/sw_collector_rest_api.h sw_collector/sw_collector_rest_api.c
 
 sw_collector_LDADD = \
-		$(top_builddir)/src/libstrongswan/libstrongswan.la \
-		$(top_builddir)/src/libimcv/libimcv.la
+	$(top_builddir)/src/libstrongswan/libstrongswan.la \
+	$(top_builddir)/src/libimcv/libimcv.la \
+	$(json_LIBS)
+
 sw-collector.o : $(top_builddir)/config.status
 
 templatesdir = $(pkgdatadir)/templates/database/sw-collector
