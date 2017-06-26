@@ -4,6 +4,9 @@ AM_CPPFLAGS = \
 	-I$(top_srcdir)/src/libtpmtss \
 	-DIPSEC_SCRIPT=\"${ipsec_script}\"
 
+AM_CFLAGS = \
+	$(json_CFLAGS)
+
 ipseclib_LTLIBRARIES = libimcv.la
 
 libimcv_la_LDFLAGS = \
@@ -12,7 +15,8 @@ libimcv_la_LDFLAGS = \
 libimcv_la_LIBADD = \
 	$(top_builddir)/src/libstrongswan/libstrongswan.la \
 	$(top_builddir)/src/libtncif/libtncif.la \
-	$(top_builddir)/src/libtpmtss/libtpmtss.la
+	$(top_builddir)/src/libtpmtss/libtpmtss.la \
+	$(json_LIBS)
 
 if USE_WINDOWS
   libimcv_la_LIBADD += -lws2_32
@@ -87,6 +91,7 @@ libimcv_la_SOURCES = \
 	pts/components/tcg/tcg_comp_func_name.h pts/components/tcg/tcg_comp_func_name.c \
 	pwg/pwg_attr.h pwg/pwg_attr.c \
 	pwg/pwg_attr_vendor_smi_code.h pwg/pwg_attr_vendor_smi_code.c \
+	rest/rest.h rest/rest.c \
 	seg/seg_contract.h seg/seg_contract.c \
 	seg/seg_contract_manager.h seg/seg_contract_manager.c \
 	seg/seg_env.h seg/seg_env.c \

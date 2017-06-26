@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Andreas Steffen
+ * Copyright (C) 2017 Andreas Steffen
  * HSR Hochschule fuer Technik Rapperswil
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -16,19 +16,19 @@
 #define _GNU_SOURCE
 #include <stdio.h>
 
-#include "imv_swid_rest.h"
+#include "rest.h"
 
-typedef struct private_imv_swid_rest_t private_imv_swid_rest_t;
+typedef struct private_rest_t private_rest_t;
 
 /**
- * Private data of an imv_swid_rest_t object.
+ * Private data of an rest_t object.
  */
-struct private_imv_swid_rest_t {
+struct private_rest_t {
 
 	/**
-	 * Public members of imv_swid_rest_t
+	 * Public members of rest_t
 	 */
-	imv_swid_rest_t public;
+	rest_t public;
 
 	/**
 	 * URI of REST API
@@ -42,10 +42,41 @@ struct private_imv_swid_rest_t {
 
 };
 
+METHOD(rest_t, get, status_t,
+	private_rest_t *this, char *command, json_object **jresponse)
+{
+	struct json_tokener *tokener;
+	chunk_t response = chunk_empty;
+	status_t status;
+	char *uri;
+
+	if (asprintf(&uri, "%s%s",this->uri, command) < 0)
+	{
+		return FAILED;
+	}
+
+	status = lib->fetcher->fetch(lib->fetcher, uri, &response,
+				FETCH_TIMEOUT, this->timeout,
+				FETCH_END);
+	free(uri);
+
+	if (status == SUCCESS && jresponse)
+	{
+		/* Parse HTTP response into a JSON object */
+		tokener = json_tokener_new();
+		*jresponse = json_tokener_parse_ex(tokener, response.ptr, response.len);
+		json_tokener_free(tokener);
+	}
+	free(response.ptr);
+
+	return status;
+}
+
+#define HTTP_STATUS_CODE_NOT_FOUND				404
 #define HTTP_STATUS_CODE_PRECONDITION_FAILED	412
 
-METHOD(imv_swid_rest_t, post, status_t,
-	private_imv_swid_rest_t *this, char *command, json_object *jrequest,
+METHOD(rest_t, post, status_t,
+	private_rest_t *this, char *command, json_object *jrequest,
 	json_object **jresponse)
 {
 	struct json_tokener *tokener;
@@ -72,22 +103,31 @@ METHOD(imv_swid_rest_t, post, status_t,
 
 	if (status != SUCCESS)
 	{
-		if (code != HTTP_STATUS_CODE_PRECONDITION_FAILED || !response.ptr)
+		switch (code)
 		{
-			DBG2(DBG_IMV, "REST http request failed with status code: %d", code);
-			status = FAILED;
-		}
-		else
-		{
-			if (jresponse)
-			{
-				/* Parse HTTP response into a JSON object */
-				tokener = json_tokener_new();
-				*jresponse = json_tokener_parse_ex(tokener, response.ptr,
-															response.len);
-				json_tokener_free(tokener);
-			}
-			status = NEED_MORE;
+			case HTTP_STATUS_CODE_NOT_FOUND:
+				status = NOT_FOUND;
+				break;
+			case HTTP_STATUS_CODE_PRECONDITION_FAILED:
+				if (!response.ptr)
+				{
+					return FAILED;
+				}
+				if (jresponse)
+				{
+					/* Parse HTTP response into a JSON object */
+					tokener = json_tokener_new();
+					*jresponse = json_tokener_parse_ex(tokener, response.ptr,
+																response.len);
+					json_tokener_free(tokener);
+				}
+				status = NEED_MORE;
+				break;
+			default:
+				DBG2(DBG_IMV, "REST http request failed with status code: %d",
+							   code);
+				status = FAILED;
+				break;
 		}
 	}
 	free(response.ptr);
@@ -95,8 +135,8 @@ METHOD(imv_swid_rest_t, post, status_t,
 	return status;
 }
 
-METHOD(imv_swid_rest_t, destroy, void,
-	private_imv_swid_rest_t *this)
+METHOD(rest_t, destroy, void,
+	private_rest_t *this)
 {
 	free(this->uri);
 	free(this);
@@ -105,12 +145,13 @@ METHOD(imv_swid_rest_t, destroy, void,
 /**
  * Described in header.
  */
-imv_swid_rest_t *imv_swid_rest_create(char *uri, u_int timeout)
+rest_t *rest_create(char *uri, u_int timeout)
 {
-	private_imv_swid_rest_t *this;
+	private_rest_t *this;
 
 	INIT(this,
 		.public = {
+			.get = _get,
 			.post = _post,
 			.destroy = _destroy,
 		},

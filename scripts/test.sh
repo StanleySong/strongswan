@@ -67,7 +67,7 @@ win*)
 	# no make check for Windows binaries
 	TARGET=
 	CFLAGS="$CFLAGS -mno-ms-bitfields"
-	DEPS="gcc-mingw-w64-base"
+	DEPS="gcc-mingw-w64-base libjson0-dev"
 	case "$TEST" in
 	win64)
 		# headers on 12.04 are too old, so we only build the plugins here

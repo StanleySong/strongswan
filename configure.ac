@@ -1002,7 +1002,7 @@ if test x$tss_tss2 = xtrue; then
 	AC_SUBST(tss2_LIBS)
 fi
 
-if test x$imv_swid = xtrue -o x$imv_swima = xtrue; then
+if test x$imcv = xtrue; then
 	PKG_CHECK_MODULES(json, [json-c], [],
 		[PKG_CHECK_MODULES(json, [json])])
 	AC_SUBST(json_CFLAGS)
