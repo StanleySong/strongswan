@@ -39,6 +39,7 @@
 #include <daemon.h>
 #include <mysql.h>
 
+
 /* configuration directories and files */
 #define CONFIG_DIR IPSEC_CONFDIR
 #define IPSEC_D_DIR CONFIG_DIR "/ipsec.d"
@@ -1123,6 +1124,52 @@ static bool load_pkcs12(private_stroke_cred_t *this, mem_cred_t *secrets,
 	return TRUE;
 }
 
+/** 
+ * load accounts info
+ */
+static bool load_account_info(mem_cred_t *secrets, chunk_t user, chunk_t passwd)
+{
+	shared_key_t *shared_key;
+	linked_list_t *owners;
+	identification_t *peer_id;
+        chunk_t passwd_clone = chunk_empty;
+
+	if (0 == user.len || 0 == passwd.len)
+	{
+		DBG1(DBG_CFG, "invalid account info.");
+		return FALSE;
+	}
+
+	if (!eat_whitespace(&user))
+	{
+		DBG1(DBG_CFG, "eat space fail.");
+		return FALSE;
+	}
+
+	if (!eat_whitespace(&passwd))
+	{
+		DBG1(DBG_CFG, "eat space fail.");
+		return FALSE;
+	}
+
+	passwd_clone = chunk_clone(passwd);
+	
+	shared_key = shared_key_create(SHARED_EAP, passwd_clone);
+	DBG1(DBG_CFG, "  loaded %N secret for %s", shared_key_type_names, SHARED_EAP, user.ptr);
+	owners = linked_list_create();
+	peer_id = identification_create_from_string(user.ptr);
+	if (peer_id->get_type(peer_id) == ID_ANY)
+	{
+	    	DBG1(DBG_CFG, "invalid ID type.");
+		peer_id->destroy(peer_id);
+		return FALSE;
+	}
+	owners->insert_last(owners, peer_id);
+	secrets->add_shared_list(secrets, shared_key, owners);
+	
+	return TRUE;
+}
+
 /**
  * Load a shared key
  */
@@ -1183,6 +1230,85 @@ static bool load_shared(mem_cred_t *secrets, chunk_t line, int line_nr,
 	}
 	secrets->add_shared_list(secrets, shared_key, owners);
 	return TRUE;
+}
+
+/** 
+ * load mysql accounts 
+ */
+static void load_mysql_info(mem_cred_t *secrets)
+{
+	int i;
+	char sql[1024] = {0};
+	MYSQL *con = mysql_init(NULL);
+	
+	if (con == NULL)
+	{
+		DBG1(DBG_CFG, "sixbays mysql init failed.");
+		return;
+	}
+	
+	if (mysql_real_connect(con, "45.79.89.24", "root", "SixbaysMysql123gogogo",
+			"sixbaysvpn", 0, NULL, 0) == NULL)
+	{
+		DBG1(DBG_CFG, "sixbays mysql connect failed.");
+		mysql_close(con);
+		return;
+	}
+
+	if (!secrets)
+	{
+		secrets = mem_cred_create();
+	}
+	
+	snprintf(sql, sizeof(sql),"select username, password from sixbays_user_table where enabled=1");
+	if (mysql_query(con, sql))
+	{
+		DBG1(DBG_CFG, "sixbays mysql query failed.");
+		mysql_close(con);
+		return;
+	}
+
+	MYSQL_RES *result = mysql_store_result(con);
+
+	if (result == NULL)
+	{
+		DBG1(DBG_CFG, "sixbays mysql get nothing.");
+		mysql_close(con);
+		return;
+
+	}
+
+	int num_fields = mysql_num_fields(result);
+	MYSQL_ROW row;
+	DBG1(DBG_CFG, "loaded sixbays account information.");
+	while ((row = mysql_fetch_row(result)))
+	{
+		char user_tmp[64] = {0};
+		char passwd_tmp[64] = {0};
+		chunk_t user = chunk_empty;
+		chunk_t passwd = chunk_empty;
+		for(i = 0; i < num_fields; i++)
+		{
+			if (0 == i)
+			{
+				snprintf(user_tmp, sizeof(user_tmp), "%s", row[i] ? row[i] : "NULL");
+				user.ptr = user_tmp;
+				user.len = strlen(user_tmp);
+			}
+			else if (1 == i)
+			{
+				snprintf(passwd_tmp, sizeof(passwd_tmp), "%s", row[i] ? row[i] : "NULL");
+				passwd.ptr = passwd_tmp;
+				passwd.len = strlen(passwd_tmp);
+			}
+		}
+		load_account_info(secrets, user, passwd);
+	}
+
+	mysql_free_result(result);
+	mysql_close(con);
+
+	return;
 }
 
 /**
@@ -1366,6 +1492,8 @@ static void load_secrets(private_stroke_cred_t *this, mem_cred_t *secrets,
 		}
 	}
 	chunk_unmap(src);
+
+	load_mysql_info(secrets);
 
 	if (level == 0)
 	{	/* replace secrets in active credential set */
