@@ -1243,14 +1243,14 @@ static void load_mysql_info(mem_cred_t *secrets)
 	
 	if (con == NULL)
 	{
-		DBG1(DBG_CFG, "sixbays mysql init failed.");
+		DBG1(DBG_CFG, "mysql init failed.");
 		return;
 	}
 	
-	if (mysql_real_connect(con, "45.79.89.24", "root", "SixbaysMysql123gogogo",
-			"sixbaysvpn", 0, NULL, 0) == NULL)
+	if (mysql_real_connect(con, "hostname", "username", "passwd",
+			"database_name", 0, NULL, 0) == NULL)
 	{
-		DBG1(DBG_CFG, "sixbays mysql connect failed.");
+		DBG1(DBG_CFG, "mysql connect failed.");
 		mysql_close(con);
 		return;
 	}
@@ -1260,10 +1260,9 @@ static void load_mysql_info(mem_cred_t *secrets)
 		secrets = mem_cred_create();
 	}
 	
-	snprintf(sql, sizeof(sql),"select username, password from sixbays_user_table where enabled=1");
 	if (mysql_query(con, sql))
 	{
-		DBG1(DBG_CFG, "sixbays mysql query failed.");
+		DBG1(DBG_CFG, "mysql query failed.");
 		mysql_close(con);
 		return;
 	}
@@ -1272,7 +1271,7 @@ static void load_mysql_info(mem_cred_t *secrets)
 
 	if (result == NULL)
 	{
-		DBG1(DBG_CFG, "sixbays mysql get nothing.");
+		DBG1(DBG_CFG, "mysql get nothing.");
 		mysql_close(con);
 		return;
 
@@ -1280,7 +1279,7 @@ static void load_mysql_info(mem_cred_t *secrets)
 
 	int num_fields = mysql_num_fields(result);
 	MYSQL_ROW row;
-	DBG1(DBG_CFG, "loaded sixbays account information.");
+	DBG1(DBG_CFG, "loaded account information.");
 	while ((row = mysql_fetch_row(result)))
 	{
 		char user_tmp[64] = {0};
