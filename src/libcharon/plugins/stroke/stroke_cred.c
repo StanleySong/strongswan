@@ -37,6 +37,7 @@
 #include <utils/lexparser.h>
 #include <threading/rwlock.h>
 #include <daemon.h>
+#include <mysql.h>
 
 /* configuration directories and files */
 #define CONFIG_DIR IPSEC_CONFDIR
